@@ -1,3 +1,5 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
 import oracledb
 
 DSN = "localhost:1521/xe"
@@ -7,128 +9,212 @@ PASSWORD = "princhipesa"
 def conectar():
     return oracledb.connect(user=USER, password=PASSWORD, dsn=DSN)
 
-def ver_reporte_vista():
-    print("\n--- REPORTE DE PLANILLA (VISTA) ---")
-    conn = conectar()
-    cursor = conn.cursor()
+def obtener_datos_vista():
+    lista = []
     try:
+        conn = conectar()
+        cursor = conn.cursor()
         cursor.execute("SELECT * FROM V_REPORTE_PLANILLA ORDER BY SALARIO DESC")
-        
-        print(f"{'NOMBRE':<12} {'PUESTO':<15} {'DEPARTAMENTO':<15} {'SUELDO':<10} {'ANUAL'}")
-        print("-" * 65)
         for fila in cursor:
-            print(f"{fila[1]:<12} {fila[2]:<15} {fila[3]:<15} {fila[4]:<10} {fila[5]}")
-    except oracledb.Error as e:
-        print(f"Error al consultar vista: {e}")
-    finally:
-        cursor.close()
+            lista.append(fila)
         conn.close()
+    except Exception as e:
+        messagebox.showerror("Error", f"Error de conexión: {e}")
+    return lista
 
-def ejecutar_aumento(puesto, porcentaje):
-    print(f"\n--- EJECUTANDO PROCEDURE: Aumento del {porcentaje}% a {puesto} ---")
-    conn = conectar()
-    cursor = conn.cursor()
+def obtener_auditoria():
+    lista = []
     try:
+        conn = conectar()
+        cursor = conn.cursor()
+        cursor.execute("SELECT NOMBRE_EMPLEADO, PUESTO_ANTIGUO, FECHA_DESPIDO, USUARIO_QUE_BORRO FROM AUDITORIA_DESPIDOS ORDER BY ID_AUDIT DESC")
+        for fila in cursor:
+            lista.append(fila)
+        conn.close()
+    except Exception as e:
+        pass
+    return lista
+
+def db_aumentar_sueldo(puesto, porcentaje):
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
         cursor.callproc('SP_AUMENTAR_POR_PUESTO', [puesto, porcentaje])
-        print("Proceso completado correctamente en la base de datos.")
-    except oracledb.Error as e:
-        print(f"Error en el procedimiento: {e}")
-    finally:
-        cursor.close()
         conn.close()
+        return True
+    except Exception as e:
+        messagebox.showerror("Error", f"Fallo en Procedure: {e}")
+        return False
 
-def crear_empleado_manual():
-    print("\n--- REGISTRO DE NUEVO EMPLEADO ---")
-    conn = conectar()
-    cursor = conn.cursor()
+def db_registrar_empleado(cod, nom, puesto, sal, dept):
     try:
-        cod = int(input("Codigo (ej. 7999): "))
-        nom = input("Nombre: ").upper()
-        puesto = input("Puesto: ").upper()
-        sal = float(input("Salario: "))
-        dept = int(input("Codigo Depto (10, 20 o 30): "))
-        
+        conn = conectar()
+        cursor = conn.cursor()
         sql = "INSERT INTO EMPLEADOS (CODIGO, NOMBRE, PUESTO, FECHA_ING, SALARIO, COD_DEPT) VALUES (:1, :2, :3, SYSDATE, :4, :5)"
         cursor.execute(sql, [cod, nom, puesto, sal, dept])
         conn.commit()
-        print(f"Empleado {nom} registrado exitosamente.")
-    except oracledb.Error as e:
-        print(f"Error al registrar: {e}")
-    finally:
-        cursor.close()
         conn.close()
+        return True
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo registrar: {e}")
+        return False
 
-def crear_empleado_trampa():
-    conn = conectar()
-    cursor = conn.cursor()
+def db_simular_trampa():
     try:
-        print("\nCreando empleado de prueba 'TRAMPA'...")
-        sql = "INSERT INTO EMPLEADOS (CODIGO, NOMBRE, PUESTO, FECHA_ING, SALARIO, COD_DEPT) VALUES (9999, 'TRAMPA', 'TEMPORAL', SYSDATE, 1000, 20)"
-        cursor.execute(sql)
-        conn.commit()
-        print("Empleado de prueba creado.")
-    except oracledb.Error as e:
-        print(f"Error (quizas ya existe): {e}")
-    finally:
-        cursor.close()
-        conn.close()
-
-def eliminar_empleado_trampa():
-    conn = conectar()
-    cursor = conn.cursor()
-    try:
-        print("Eliminando empleado TRAMPA")
+        conn = conectar()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO EMPLEADOS (CODIGO, NOMBRE, PUESTO, FECHA_ING, SALARIO, COD_DEPT) VALUES (9999, 'TRAMPA', 'TEMPORAL', SYSDATE, 1000, 20)")
         cursor.execute("DELETE FROM EMPLEADOS WHERE CODIGO = 9999")
         conn.commit()
-        print("Empleado eliminado. Verificando auditoria...")
-    except oracledb.Error as e:
-        print(f"Error al eliminar: {e}")
-    finally:
-        cursor.close()
         conn.close()
+        return True
+    except Exception as e:
+        messagebox.showerror("Error", f"Error en simulación: {e}")
+        return False
 
-def ver_auditoria():
-    conn = conectar()
-    cursor = conn.cursor()
-    try:
-        print(" REGISTROS DE AUDITORIA (TRIGGER)")
-        cursor.execute("SELECT NOMBRE_EMPLEADO, PUESTO_ANTIGUO, FECHA_DESPIDO, USUARIO_QUE_BORRO FROM AUDITORIA_DESPIDOS ORDER BY ID_AUDIT DESC")
-        print(f"{'EMPLEADO':<15} {'PUESTO':<15} {'FECHA':<15} {'USUARIO'}")
-        print("-" * 60)
-        for fila in cursor:
-            print(f"{fila[0]:<15} {fila[1]:<15} {str(fila[2])[:10]:<15} {fila[3]}")
-    except oracledb.Error as e:
-        print(f"Error al consultar auditoria: {e}")
-    finally:
-        cursor.close()
-        conn.close()
+class AplicacionRRHH:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Sistema de Gestión RRHH")
+        self.root.geometry("900x600")
+        
+        style = ttk.Style()
+        style.theme_use('clam')
+
+        tab_control = ttk.Notebook(root)
+        
+        self.tab1 = ttk.Frame(tab_control)
+        self.tab2 = ttk.Frame(tab_control)
+        self.tab3 = ttk.Frame(tab_control)
+        
+        tab_control.add(self.tab1, text='Reporte General')
+        tab_control.add(self.tab2, text='Gestion de Personal')
+        tab_control.add(self.tab3, text='Auditoria')
+        
+        tab_control.pack(expand=1, fill="both")
+        
+        self.crear_tab_reporte()
+        self.crear_tab_gestion()
+        self.crear_tab_auditoria()
+
+    def crear_tab_reporte(self):
+        frame_top = ttk.Frame(self.tab1)
+        frame_top.pack(pady=10)
+        btn = ttk.Button(frame_top, text="Actualizar Tabla", command=self.cargar_tabla_reporte)
+        btn.pack()
+
+        cols = ('NOMBRE', 'PUESTO', 'DEPTO', 'SUELDO', 'ANUAL')
+        self.tree_reporte = ttk.Treeview(self.tab1, columns=cols, show='headings')
+        
+        for col in cols:
+            self.tree_reporte.heading(col, text=col)
+            self.tree_reporte.column(col, width=150)
+            
+        self.tree_reporte.pack(expand=True, fill='both', padx=10, pady=10)
+        self.cargar_tabla_reporte()
+
+    def cargar_tabla_reporte(self):
+        for i in self.tree_reporte.get_children():
+            self.tree_reporte.delete(i)
+        datos = obtener_datos_vista()
+        for fila in datos:
+            valores = (fila[1], fila[2], fila[3], f"S/. {fila[4]}", f"S/. {fila[5]}")
+            self.tree_reporte.insert("", "end", values=valores)
+
+    def crear_tab_gestion(self):
+        frame_aumento = ttk.LabelFrame(self.tab2, text="Aumento de Sueldo")
+        frame_aumento.pack(fill="x", padx=20, pady=10)
+        
+        ttk.Label(frame_aumento, text="Puesto:").grid(row=0, column=0, padx=5, pady=5)
+        self.txt_puesto_aum = ttk.Entry(frame_aumento)
+        self.txt_puesto_aum.grid(row=0, column=1, padx=5, pady=5)
+        
+        ttk.Label(frame_aumento, text="Porcentaje %:").grid(row=0, column=2, padx=5, pady=5)
+        self.txt_pct_aum = ttk.Entry(frame_aumento, width=10)
+        self.txt_pct_aum.grid(row=0, column=3, padx=5, pady=5)
+        
+        btn_aum = ttk.Button(frame_aumento, text="Aplicar Aumento", command=self.accion_aumento)
+        btn_aum.grid(row=0, column=4, padx=20, pady=5)
+
+        frame_reg = ttk.LabelFrame(self.tab2, text="Registrar Nuevo Empleado")
+        frame_reg.pack(fill="both", expand=True, padx=20, pady=10)
+
+        ttk.Label(frame_reg, text="Codigo:").grid(row=0, column=0, padx=5, pady=5)
+        self.ent_cod = ttk.Entry(frame_reg); self.ent_cod.grid(row=0, column=1)
+
+        ttk.Label(frame_reg, text="Nombre:").grid(row=1, column=0, padx=5, pady=5)
+        self.ent_nom = ttk.Entry(frame_reg); self.ent_nom.grid(row=1, column=1)
+
+        ttk.Label(frame_reg, text="Puesto:").grid(row=2, column=0, padx=5, pady=5)
+        self.ent_puesto = ttk.Entry(frame_reg); self.ent_puesto.grid(row=2, column=1)
+
+        ttk.Label(frame_reg, text="Salario:").grid(row=3, column=0, padx=5, pady=5)
+        self.ent_sal = ttk.Entry(frame_reg); self.ent_sal.grid(row=3, column=1)
+
+        ttk.Label(frame_reg, text="Cod Depto (10, 20, 30):").grid(row=4, column=0, padx=5, pady=5)
+        self.ent_dept = ttk.Entry(frame_reg); self.ent_dept.grid(row=4, column=1)
+
+        btn_reg = ttk.Button(frame_reg, text="Guardar Registro", command=self.accion_registro)
+        btn_reg.grid(row=5, column=1, pady=20)
+
+    def accion_aumento(self):
+        puesto = self.txt_puesto_aum.get().upper()
+        try:
+            pct = float(self.txt_pct_aum.get())
+            if db_aumentar_sueldo(puesto, pct):
+                messagebox.showinfo("Correcto", "Aumento aplicado correctamente.")
+                self.cargar_tabla_reporte()
+        except ValueError:
+            messagebox.showerror("Error", "Ingrese un numero valido.")
+
+    def accion_registro(self):
+        try:
+            c = int(self.ent_cod.get())
+            n = self.ent_nom.get().upper()
+            p = self.ent_puesto.get().upper()
+            s = float(self.ent_sal.get())
+            d = int(self.ent_dept.get())
+            if db_registrar_empleado(c, n, p, s, d):
+                messagebox.showinfo("Correcto", "Empleado registrado.")
+                self.ent_cod.delete(0, 'end'); self.ent_nom.delete(0, 'end')
+                self.cargar_tabla_reporte()
+        except ValueError:
+            messagebox.showerror("Error", "Revise los datos ingresados.")
+
+    def crear_tab_auditoria(self):
+        frame_top = ttk.Frame(self.tab3)
+        frame_top.pack(pady=10)
+        
+        btn_sim = ttk.Button(frame_top, text="Simular Eliminacion (Probar Trigger)", command=self.accion_simulacion)
+        btn_sim.pack(side="left", padx=10)
+        
+        btn_ref = ttk.Button(frame_top, text="Refrescar Lista", command=self.cargar_tabla_auditoria)
+        btn_ref.pack(side="left", padx=10)
+
+        cols = ('EMPLEADO ELIMINADO', 'PUESTO ANTERIOR', 'FECHA', 'USUARIO')
+        self.tree_audit = ttk.Treeview(self.tab3, columns=cols, show='headings')
+        
+        for col in cols:
+            self.tree_audit.heading(col, text=col)
+            self.tree_audit.column(col, width=180)
+            
+        self.tree_audit.pack(expand=True, fill='both', padx=10, pady=10)
+        self.cargar_tabla_auditoria()
+
+    def accion_simulacion(self):
+        if db_simular_trampa():
+            messagebox.showwarning("Alerta", "Se elimino un empleado de prueba. Verifique la auditoria.")
+            self.cargar_tabla_auditoria()
+
+    def cargar_tabla_auditoria(self):
+        for i in self.tree_audit.get_children():
+            self.tree_audit.delete(i)
+        datos = obtener_auditoria()
+        for fila in datos:
+            valores = (fila[0], fila[1], str(fila[2]), fila[3])
+            self.tree_audit.insert("", "end", values=valores)
 
 if __name__ == "__main__":
-    while True:
-        print("SISTEMA DE GESTION DE RRHH - ENTREGA 3")
-        print("1) Ver Reporte General (Vista)")
-        print("2) Aumentar Sueldos (Procedure)")
-        print("3) Registrar Nuevo Empleado")
-        print("4) Prueba de Auditoria (Trigger)")
-        print("5) Salir")
-        
-        opcion = input("\nSeleccione una opcion: ")
-        
-        if opcion == "1":
-            ver_reporte_vista()
-        elif opcion == "2":
-            p = input("Ingrese Puesto (ej. ANALISTA): ").upper()
-            pct = float(input("Porcentaje de aumento (ej. 10): "))
-            ejecutar_aumento(p, pct)
-        elif opcion == "3":
-            crear_empleado_manual()
-        elif opcion == "4":
-            crear_empleado_trampa()
-            input("Presione ENTER para borrarlo y activar el Trigger")
-            eliminar_empleado_trampa()
-            ver_auditoria()
-        elif opcion == "5":
-            print("Saliendo del sistema")
-            break
-        else:
-            print("Opcion no valida intente de nuevo")
+    root = tk.Tk()
+    app = AplicacionRRHH(root)
+    root.mainloop()
